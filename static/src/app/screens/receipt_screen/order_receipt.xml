@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="cz_eet.OrderReceipt" t-inherit="point_of_sale.OrderReceipt" t-inherit-mode="extension">
+        <!-- Údaje o evidované tržbě před patičkou účtenky (účtenka není povinná,
+             ale když se tiskne, doporučuje se uvést POK, EIČ a označení pokladny). -->
+        <xpath expr="//div[hasclass('before-footer')]" position="before">
+            <div t-if="order.config.eet_enabled" class="pos-receipt-eet pt-3" style="font-size: 85%;">
+                <t t-if="order.eet_pok">
+                    <div class="fw-bolder">EET – tržba zaevidována</div>
+                    <div class="text-break">POK: <t t-esc="order.eet_pok"/></div>
+                </t>
+                <t t-elif="order.eet_state === 'verified'">
+                    <div class="fw-bolder">EET – ověřovací mód, tržba nebyla zaevidována</div>
+                </t>
+                <t t-else="">
+                    <div class="fw-bolder">EET – tržba evidována v režimu offline</div>
+                    <div>Údaje o tržbě budou správci daně odeslány dodatečně.</div>
+                </t>
+                <div>
+                    EIČ: <t t-esc="order.config.eet_eic"/>,
+                    pokladna: <t t-esc="order.config.eet_id_pokl"/>,
+                    jednotka: <t t-esc="order.config.eet_id_jednotky"/>
+                </div>
+                <div t-if="order.config.eet_environment !== 'production' || order.config.eet_overeni" class="fw-bolder">
+                    TESTOVACÍ REŽIM – POK NENÍ PLATNÝ
+                </div>
+            </div>
+        </xpath>
+    </t>
+</templates>

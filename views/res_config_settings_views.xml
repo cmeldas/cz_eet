@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_cz_eet" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.cz_eet</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="point_of_sale.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@id='pos_accounting_section']" position="after">
+                <block title="Evidence tržeb (EET 2.0)" id="pos_eet_section">
+                    <setting id="pos_eet_enabled_setting" string="Evidovat tržby"
+                             help="Po zaplacení odeslat podepsanou datovou zprávu správci daně a tisknout POK na účtenku. Nastavení platí pro tuto pokladnu.">
+                        <field name="pos_eet_enabled"/>
+                        <div class="content-group mt16" invisible="not pos_eet_enabled">
+                            <div class="row">
+                                <label for="pos_eet_environment" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_environment" widget="radio"/>
+                            </div>
+                            <div class="row mt8">
+                                <field name="pos_eet_overeni" class="col-lg-1"/>
+                                <label for="pos_eet_overeni" class="col-lg-10 o_light_label"/>
+                            </div>
+                            <div class="text-muted">
+                                Ověřovací mód: server zprávu jen zkontroluje a nic nezaeviduje, na účtence je varování.
+                                Playground vrací fiktivní POK končící „-ff“.
+                            </div>
+                            <div class="row mt8">
+                                <label for="pos_eet_url" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_url" readonly="1" class="text-muted"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="pos_eet_identity_setting" string="Poplatník a pokladna" invisible="not pos_eet_enabled"
+                             help="Údaje z portálu MOJE daně (DIS+): pokladní certifikát, EIČ, číslo evidenční jednotky a označení této pokladny.">
+                        <div class="content-group">
+                            <div class="row">
+                                <label for="pos_eet_certificate_id" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_certificate_id" options="{'no_quick_create': True}"/>
+                            </div>
+                            <div class="row" invisible="not pos_eet_certificate_valid_until">
+                                <label for="pos_eet_certificate_valid_until" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_certificate_valid_until" widget="remaining_days"/>
+                            </div>
+                            <div class="row">
+                                <label for="pos_eet_eic" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_eic" placeholder="CZ12345678"/>
+                            </div>
+                            <div class="row">
+                                <label for="pos_eet_id_jednotky" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_id_jednotky"/>
+                            </div>
+                            <div class="row">
+                                <label for="pos_eet_id_pokl" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_id_pokl" placeholder="OBCHUDEK-1"/>
+                            </div>
+                        </div>
+                        <div class="mt8">
+                            <button name="%(certificate.certificate_certificate_action_view_list)d" icon="oi-arrow-right"
+                                    type="action" string="Certifikáty" class="btn-link"/>
+                            <button name="action_eet_test_connection" type="object" icon="fa-plug"
+                                    string="Otestovat spojení" class="btn-link"/>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

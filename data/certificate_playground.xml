@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Veřejný testovací certifikát Finanční správy pro playground (fyzická osoba, EIČ CZ8551015704).
+         Sdílený všemi vývojáři, heslo je zveřejněné v balíčku CAEET_Playground_2026_v1.zip.
+         Na produkčním prostředí ho server odmítne (kód 4), takže jeho instalace nic neriskuje. -->
+    <record id="certificate_playground_cz8551015704" model="certificate.certificate">
+        <field name="name">EET Playground – testovací certifikát CZ8551015704</field>
+        <field name="scope">eet</field>
+        <field name="company_id" ref="base.main_company"/>
+        <field name="content" type="base64" file="cz_eet/static/playground/CA_EET-Playground-CZ8551015704.p12"/>
+        <field name="pkcs12_password">aaaa1111</field>
+    </record>
+</odoo>

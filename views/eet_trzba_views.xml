@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="eet_trzba_view_list" model="ir.ui.view">
+        <field name="name">eet.trzba.list</field>
+        <field name="model">eet.trzba</field>
+        <field name="arch" type="xml">
+            <list string="Tržby EET" create="false"
+                  decoration-danger="state == 'error'"
+                  decoration-info="state == 'to_send'"
+                  decoration-muted="state == 'verified'">
+                <field name="dat_trzby"/>
+                <field name="porad_cis"/>
+                <field name="config_id"/>
+                <field name="pos_order_id" optional="show"/>
+                <field name="celk_trzba" sum="Celkem"/>
+                <field name="environment" optional="show"/>
+                <field name="overeni" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-danger="state == 'error'"
+                       decoration-info="state == 'to_send'"
+                       decoration-success="state == 'sent'"
+                       decoration-muted="state == 'verified'"/>
+                <field name="pok" optional="show"/>
+                <field name="attempts" optional="hide"/>
+                <field name="dat_odesl" optional="hide"/>
+                <field name="error_text" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="eet_trzba_view_form" model="ir.ui.view">
+        <field name="name">eet.trzba.form</field>
+        <field name="model">eet.trzba</field>
+        <field name="arch" type="xml">
+            <form string="Tržba EET" create="false">
+                <header>
+                    <button name="action_send" type="object" string="Odeslat" class="btn-primary"
+                            invisible="state != 'to_send'"/>
+                    <button name="action_send" type="object" string="Odeslat znovu" class="btn-primary"
+                            invisible="state != 'error'"
+                            confirm="Tržba bude odeslána znovu jako opakované zaslání (prvni_zaslani=false). Pokračovat?"/>
+                    <field name="state" widget="statusbar" statusbar_visible="to_send,sent"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-danger" role="alert" invisible="state != 'error'">
+                        <field name="error_text" class="d-inline-block"/>
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="state != 'to_send' or not error_text">
+                        Poslední pokus selhal, tržba čeká na další odeslání: <field name="error_text" class="d-inline-block"/>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="not warnings">
+                        <strong>Varování správce daně:</strong>
+                        <field name="warnings" class="d-inline-block"/>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="porad_cis" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Tržba">
+                            <field name="config_id"/>
+                            <field name="pos_order_id"/>
+                            <field name="dat_trzby"/>
+                            <field name="celk_trzba"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Evidence">
+                            <field name="environment"/>
+                            <field name="overeni"/>
+                            <field name="eic_popl"/>
+                            <field name="id_jednotky"/>
+                            <field name="id_pokl"/>
+                        </group>
+                        <group string="Odpověď správce daně">
+                            <field name="pok"/>
+                            <field name="test"/>
+                            <field name="dat_prij"/>
+                            <field name="response_code"/>
+                        </group>
+                        <group string="Odesílání">
+                            <field name="attempts"/>
+                            <field name="dat_odesl"/>
+                            <field name="uuid_zpravy"/>
+                            <field name="transaction_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Odeslaná zpráva" name="request">
+                            <field name="request_xml" widget="ace" options="{'mode': 'xml'}" readonly="1"/>
+                        </page>
+                        <page string="Odpověď" name="response">
+                            <field name="response_xml" widget="ace" options="{'mode': 'xml'}" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="eet_trzba_view_search" model="ir.ui.view">
+        <field name="name">eet.trzba.search</field>
+        <field name="model">eet.trzba</field>
+        <field name="arch" type="xml">
+            <search string="Tržby EET">
+                <field name="porad_cis"/>
+                <field name="pok"/>
+                <field name="pos_order_id"/>
+                <field name="config_id"/>
+                <filter string="Čeká na odeslání" name="to_send" domain="[('state', '=', 'to_send')]"/>
+                <filter string="Chyba" name="error" domain="[('state', '=', 'error')]"/>
+                <filter string="Zaevidováno" name="sent" domain="[('state', '=', 'sent')]"/>
+                <filter string="Ověřovací mód" name="verified" domain="[('state', '=', 'verified')]"/>
+                <separator/>
+                <filter string="Produkce" name="production" domain="[('environment', '=', 'production')]"/>
+                <filter string="Playground" name="playground" domain="[('environment', '=', 'playground')]"/>
+                <separator/>
+                <filter string="Datum tržby" name="filter_dat_trzby" date="dat_trzby"/>
+                <group>
+                    <filter string="Pokladna" name="group_config" context="{'group_by': 'config_id'}"/>
+                    <filter string="Stav" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Prostředí" name="group_environment" context="{'group_by': 'environment'}"/>
+                    <filter string="Den tržby" name="group_day" context="{'group_by': 'dat_trzby:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_eet_trzba" model="ir.actions.act_window">
+        <field name="name">Evidence tržeb (EET)</field>
+        <field name="res_model">eet.trzba</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="eet_trzba_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Zatím žádná evidovaná tržba</p>
+            <p>Tržby sem přibývají automaticky po zaplacení objednávky v pokladně se zapnutou evidencí tržeb.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_eet_trzba" name="Evidence tržeb (EET)" parent="point_of_sale.menu_point_of_sale"
+              action="action_eet_trzba" sequence="30"/>
+</odoo>

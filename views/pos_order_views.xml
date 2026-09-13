@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_pos_pos_form_cz_eet" model="ir.ui.view">
+        <field name="name">pos.order.form.inherit.cz_eet</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="eet_required" invisible="1"/>
+                <button name="action_eet_send" type="object" string="Odeslat EET" class="btn-secondary"
+                        invisible="not eet_required or eet_state in ('sent', 'verified') or state not in ('paid', 'done', 'invoiced')"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_eet_view_trzby" type="object" class="oe_stat_button" icon="fa-university"
+                        invisible="not eet_trzba_ids">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">EET</span>
+                        <field name="eet_state" class="o_stat_value"/>
+                    </div>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="EET" name="eet" invisible="not eet_required and not eet_trzba_ids">
+                    <div class="alert alert-danger" role="alert" invisible="eet_state != 'error'">
+                        Odeslání tržby správci daně selhalo. Oprav nastavení pokladny a použij „Odeslat EET“.
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="eet_state != 'to_send'">
+                        Tržba čeká na odeslání (pokladna byla offline nebo server EET neodpověděl). Odešle ji cron,
+                        nebo ji pošli ručně tlačítkem „Odeslat EET“.
+                    </div>
+                    <group>
+                        <field name="eet_state" widget="badge"
+                               decoration-danger="eet_state == 'error'"
+                               decoration-info="eet_state == 'to_send'"
+                               decoration-success="eet_state == 'sent'"
+                               decoration-muted="eet_state == 'verified'"/>
+                        <field name="eet_pok"/>
+                    </group>
+                    <field name="eet_trzba_ids" readonly="1">
+                        <list>
+                            <field name="dat_trzby"/>
+                            <field name="porad_cis"/>
+                            <field name="celk_trzba"/>
+                            <field name="environment"/>
+                            <field name="overeni"/>
+                            <field name="state" widget="badge"
+                                   decoration-danger="state == 'error'"
+                                   decoration-info="state == 'to_send'"
+                                   decoration-success="state == 'sent'"
+                                   decoration-muted="state == 'verified'"/>
+                            <field name="pok"/>
+                            <field name="attempts"/>
+                            <field name="error_text"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_pos_order_tree_cz_eet" model="ir.ui.view">
+        <field name="name">pos.order.list.inherit.cz_eet</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
+        <field name="arch" type="xml">
+            <field name="state" position="after">
+                <field name="eet_state" widget="badge" optional="show"
+                       decoration-danger="eet_state == 'error'"
+                       decoration-info="eet_state == 'to_send'"
+                       decoration-success="eet_state == 'sent'"
+                       decoration-muted="eet_state == 'verified'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_pos_order_filter_cz_eet" model="ir.ui.view">
+        <field name="name">pos.order.search.inherit.cz_eet</field>
+        <field name="model">pos.order</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_filter"/>
+        <field name="arch" type="xml">
+            <filter name="cancelled" position="after">
+                <separator/>
+                <filter string="EET čeká na odeslání" name="eet_to_send" domain="[('eet_state', '=', 'to_send')]"/>
+                <filter string="EET chyba" name="eet_error" domain="[('eet_state', '=', 'error')]"/>
+                <filter string="EET zaevidováno" name="eet_sent" domain="[('eet_state', '=', 'sent')]"/>
+            </filter>
+            <filter name="status" position="after">
+                <filter string="Stav EET" name="group_eet_state" domain="[]" context="{'group_by': 'eet_state'}"/>
+            </filter>
+        </field>
+    </record>
+</odoo>
