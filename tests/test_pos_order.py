@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import base64
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,6 +7,7 @@ import requests
 
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+from odoo.tools import BinaryBytes
 
 from odoo.addons.cz_eet.models import eet_soap
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
@@ -71,7 +71,7 @@ class TestEetPosOrder(TestPoSCommon):
             "name": "EET Playground test",
             "scope": "eet",
             "company_id": cls.company.id,
-            "content": base64.b64encode(PLAYGROUND_P12.read_bytes()),
+            "content": BinaryBytes(PLAYGROUND_P12.read_bytes()),
             "pkcs12_password": "aaaa1111",
         })
         cls.config = cls.basic_config
@@ -160,7 +160,7 @@ class TestEetPosOrder(TestPoSCommon):
         self.assertIn(POK, trzba.response_xml)
 
     def test_refund_is_negative_amount(self):
-        cash = self.config.payment_method_ids.filtered("is_cash_count")[:1]
+        cash = self.config.payment_method_ids.filtered(lambda method: method.type == "cash")[:1]
         server = FakeServer(RESPONSE_POK)
         with patch(POST_TARGET, server):
             order = self._create_paid_order(lines=[(self.product, -1)], payments=[(cash, -45.0)])
@@ -276,3 +276,70 @@ class TestEetPosOrder(TestPoSCommon):
             action = self.config.action_eet_test_connection()
         self.assertEqual(action["params"]["type"], "danger")
         self.assertIn("Neplatny podpis", action["params"]["message"])
+
+    # ------------------------------------------------------------------
+    # Účtenka: Odoo 20 ji vykresluje ze serverové šablony point_of_sale.pos_order_receipt
+    # (backend i pokladna); tady se ověřuje serverová strana.
+    # ------------------------------------------------------------------
+
+    def _receipt_html(self, order):
+        return str(order.order_receipt_generate_html())
+
+    def test_receipt_shows_pok(self):
+        with patch(POST_TARGET, FakeServer(RESPONSE_POK)):
+            order = self._create_paid_order()
+            self.env["pos.order"].eet_send_now([order.id])
+        html = self._receipt_html(order)
+        self.assertIn("EET – tržba zaevidována", html)
+        self.assertIn(f"POK: {POK}", html)
+        self.assertIn("EIČ: CZ8551015704", html)
+        self.assertIn("pokladna: TEST-1", html)
+        self.assertIn("jednotka: 21", html)
+        self.assertIn("TESTOVACÍ REŽIM – POK NENÍ PLATNÝ", html, "playground se na účtence označí")
+
+    def test_receipt_production_has_no_test_note(self):
+        self.config.eet_environment = "production"
+        with patch(POST_TARGET, FakeServer(RESPONSE_POK)):
+            order = self._create_paid_order()
+            self.env["pos.order"].eet_send_now([order.id])
+        html = self._receipt_html(order)
+        self.assertIn(f"POK: {POK}", html)
+        self.assertNotIn("TESTOVACÍ REŽIM", html)
+
+    def test_receipt_offline(self):
+        with patch(POST_TARGET, FakeServer(requests.ConnectionError("offline"))):
+            order = self._create_paid_order()
+            self.env["pos.order"].eet_send_now([order.id])
+        html = self._receipt_html(order)
+        self.assertIn("EET – tržba evidována v režimu offline", html)
+        self.assertNotIn("POK:", html)
+
+    def test_receipt_overeni(self):
+        self.config.write({"eet_environment": "production", "eet_overeni": True})
+        with patch(POST_TARGET, FakeServer(RESPONSE_OVERENI_OK)):
+            order = self._create_paid_order()
+            self.env["pos.order"].eet_send_now([order.id])
+        html = self._receipt_html(order)
+        self.assertIn("EET – ověřovací mód, tržba nebyla zaevidována", html)
+        self.assertIn("TESTOVACÍ REŽIM – POK NENÍ PLATNÝ", html, "ověřovací mód se označí i na produkci")
+
+    def test_receipt_without_eet(self):
+        self.config.eet_enabled = False
+        with patch(POST_TARGET, FakeServer()):
+            order = self._create_paid_order()
+        html = self._receipt_html(order)
+        self.assertNotIn("EIČ:", html)
+        self.assertNotIn("EET –", html)
+
+    # ------------------------------------------------------------------
+    # Data modulu
+    # ------------------------------------------------------------------
+
+    def test_playground_certificate_data(self):
+        """Datový soubor s testovacím certifikátem (Odoo 20: type="bytes") se načetl a dá se použít."""
+        # Certifikát patří hlavní firmě, testovací uživatel je v jiné.
+        certificate = self.env.ref("cz_eet.certificate_playground_cz8551015704").sudo()
+        self.assertEqual(certificate.scope, "eet")
+        self.assertEqual(certificate.subject_common_name, "CZ8551015704")
+        self.assertFalse(certificate.loading_error)
+        self.assertTrue(certificate.private_key_id, "z PKCS#12 se musí vytáhnout soukromý klíč")

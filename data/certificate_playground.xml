@@ -7,7 +7,7 @@
         <field name="name">EET Playground – testovací certifikát CZ8551015704</field>
         <field name="scope">eet</field>
         <field name="company_id" ref="base.main_company"/>
-        <field name="content" type="base64" file="cz_eet/static/playground/CA_EET-Playground-CZ8551015704.p12"/>
+        <field name="content" type="bytes" file="cz_eet/static/playground/CA_EET-Playground-CZ8551015704.p12"/>
         <field name="pkcs12_password">aaaa1111</field>
     </record>
 </odoo>

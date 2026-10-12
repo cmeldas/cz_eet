@@ -21,9 +21,11 @@ na účtenku.
   (zákon: bezodkladně po obnovení, nejpozději do 48 h). Opakované zaslání má nové
   UUID zprávy a ``prvni_zaslani="false"``.
 * Storno/refundace se eviduje jako tržba se zápornou částkou.
+* Údaje EET na účtence doplňuje dědění serverové šablony
+  ``point_of_sale.pos_order_receipt`` (v Odoo 20 ji vykresluje pokladna i backend).
 * Součástí je testovací certifikát Finanční správy pro playground (EIČ CZ8551015704).
 """,
-    "version": "19.0.1.0.0",
+    "version": "20.0.1.0.0",
     "category": "Sales/Point of Sale",
     "author": "Matouš Čmelík",
     "website": "https://github.com/cmeldas/cz_eet",
@@ -31,12 +33,13 @@ na účtenku.
     "depends": ["point_of_sale", "certificate"],
     "external_dependencies": {"python": ["lxml", "cryptography", "requests"]},
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/ir_cron.xml",
         "data/certificate_playground.xml",
         "views/eet_trzba_views.xml",
         "views/pos_order_views.xml",
         "views/res_config_settings_views.xml",
+        "receipt/pos_order_receipt.xml",
     ],
     "assets": {
         "point_of_sale._assets_pos": [

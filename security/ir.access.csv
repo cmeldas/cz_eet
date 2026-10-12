@@ -1,0 +1,3 @@
+id,name,model_id,group_id/id,operation,domain
+access_eet_trzba_pos_user,eet.trzba pos user,eet.trzba,point_of_sale.group_pos_user,cru,
+access_eet_trzba_pos_manager,eet.trzba pos manager,eet.trzba,point_of_sale.group_pos_manager,crud,

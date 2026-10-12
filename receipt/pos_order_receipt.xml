@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Údaje o evidované tržbě před patičkou účtenky (účtenka není povinná, ale když se
+             tiskne, doporučuje se uvést POK, EIČ a označení pokladny).
+
+             Odoo 20: účtenka je serverová QWeb šablona point_of_sale.pos_order_receipt, kterou
+             vykresluje backend (Stáhnout účtenku, e-mail) i pokladna – ta si ji při startu
+             načte a výrazy převede z Pythonu do JS (convert_python_template.js). Proto jen
+             podmnožina syntaxe: slovníky order/config, .get('x') s jedním argumentem,
+             and/or/not, porovnání; žádná volání metod. -->
+        <template id="pos_order_receipt" inherit_id="point_of_sale.pos_order_receipt">
+            <div name="before-footer" position="before">
+                <div t-if="config.get('eet_enabled')" name="cz_eet" class="w-100 text-center text-small pt-3">
+                    <t t-if="order.get('eet_pok')">
+                        <div class="text-bold">EET – tržba zaevidována</div>
+                        <div class="text-break">POK: <t t-out="order['eet_pok']"/></div>
+                    </t>
+                    <t t-elif="order.get('eet_state') == 'verified'">
+                        <div class="text-bold">EET – ověřovací mód, tržba nebyla zaevidována</div>
+                    </t>
+                    <t t-else="">
+                        <div class="text-bold">EET – tržba evidována v režimu offline</div>
+                        <div>Údaje o tržbě budou správci daně odeslány dodatečně.</div>
+                    </t>
+                    <div>
+                        EIČ: <t t-out="config['eet_eic']"/>,
+                        pokladna: <t t-out="config['eet_id_pokl']"/>,
+                        jednotka: <t t-out="config['eet_id_jednotky']"/>
+                    </div>
+                    <div t-if="config['eet_environment'] != 'production' or config['eet_overeni']" class="text-bold">
+                        TESTOVACÍ REŽIM – POK NENÍ PLATNÝ
+                    </div>
+                </div>
+            </div>
+        </template>
+    </data>
+</odoo>

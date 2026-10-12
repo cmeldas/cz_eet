@@ -1,6 +1,6 @@
 # EET 2.0 pro pokladnu (`cz_eet`)
 
-Odoo 19 modul pro **elektronickou evidenci tržeb 2.0** (zákon o evidenci tržeb ve znění
+Odoo 20 modul (větev `20.0`; verze pro Odoo 19 je na větvi `19.0`) pro **elektronickou evidenci tržeb 2.0** (zákon o evidenci tržeb ve znění
 účinném od 1. 1. 2027, rozhraní Finanční správy **v4.1**). Po zaplacení objednávky
 v pokladně sestaví datovou zprávu `<Trzba>`, podepíše ji pokladním certifikátem a odešle
 správci daně; potvrzovací kód (**POK**) uloží k objednávce a tiskne na účtenku.
@@ -105,6 +105,52 @@ Testy nepotřebují síť: HTTP volání nahrazuje falešný server, podpis se o
 a proti vzorové zprávě FS. Ostrý test proti playgroundu: v nastavení pokladny zvolit
 Playground + testovací certifikát a stisknout *Otestovat spojení*, případně zaplatit
 objednávku – POK končí `-ff`.
+
+## Odoo 20
+
+Port z 19.0.1.0.0 na **20.0.1.0.0**, chování modulu se nemění (stejná data, stejné zprávy,
+stejný postup v pokladně).
+
+Co se změnilo:
+
+- **Účtenka**: Odoo 20 už nemá OWL šablonu `point_of_sale.OrderReceipt`. Účtenku vykresluje
+  serverová QWeb šablona `point_of_sale.pos_order_receipt` – backend (stažení, e-mail)
+  i pokladna, která si ji při startu načte a výrazy převede z Pythonu do JS
+  (`convert_python_template.js`). Blok EET je proto v `receipt/pos_order_receipt.xml`
+  (dědění před `div[@name='before-footer']`) a píše se jen podmnožinou syntaxe, kterou
+  převodník zvládne (`order.get('x')`, `config['x']`, `and/or/not`, porovnání, žádná volání
+  metod). Data bere ze slovníků `order` a `config`, které obsahují všechna pole
+  `pos.order`/`pos.config` včetně `eet_*`.
+- **Přístupová práva**: `security/ir.model.access.csv` nahradil `security/ir.access.csv`
+  (nový model `ir.access`, sloupec `operation`: uživatel pokladny `cru`, manažer `crud` –
+  stejně jako v 19).
+- **JS**: oba patche (`PosOrder.waitForPushOrder`, `OrderPaymentValidation.beforePostPushOrderResolve`)
+  zůstaly, háčky v 20 existují se stejným významem; OWL komponenty modul nemá, převod na OWL 3
+  se ho netýká. V 20 se `finalizeValidation` spouští na pozadí obrazovky „Amount Paid“
+  a automatický tisk účtenky (`afterOrderValidation`) čeká až na `beforePostPushOrderResolve`,
+  takže POK je na účtence stejně jako v 19.
+- **Python**: `ir.config_parameter.get_param()` → `get_float()` (časový limit), zamykání
+  fronty přes `env.execute_query(SQL(...))`; certifikát v datech `type="bytes"` místo
+  `type="base64"` (binární pole v 20 drží `BinaryBytes`).
+- **Pohledy**: ikony tlačítek na Material Symbols (`east`, `power`, `account_balance`),
+  widget `remaining_days` → `relative_date`; adresa služby v nastavení se zalamuje.
+- **Testy**: `is_cash_count` na platební metodě v 20 není (hotovost = `type == 'cash'`),
+  přibyly testy serverové účtenky (POK, playground/produkce, offline, ověřovací mód,
+  pokladna bez EET) a načtení testovacího certifikátu z dat modulu – celkem 38 testů.
+
+Migrace dat: na produkci (kopie 6. 10. 2026) modul **není nainstalovaný**, převádět nic
+nebylo potřeba. Kdyby se do migrace na 20 nainstaloval v 19, vlastní data (`eet_trzba`,
+pole `eet_*` na `pos_config` a `pos_order`, rozsah certifikátu `eet`) se nemění.
+`migrations/20.0.1.0.0/pre-migrate.py` jen smaže XML ID starých práv
+(`cz_eet.access_eet_trzba_pos_*` v `ir_model_data` s modelem `ir.model.access`), aby šla
+znovu založit jako `ir.access`; když je převede už migrace jádra, skript nic neudělá.
+Stará tabulka `ir_model_access` zůstává (OpenUpgrade nic nemaže).
+
+Ověřeno 11. 10. 2026 v čisté DB Odoo 20: instalace bez chyb a varování, 38/38 testů,
+balíčky assetů se sestaví, v headless Edge pokladna načtená bez chyb v konzoli, platba
+v hotovosti proti playgroundu FS → POK `…-ff` na účtence, simulovaný výpadek → varování
+a účtenka „offline“, backend (objednávka, seznam a formulář tržeb, nastavení pokladny) bez
+chyb. Přechod 19 → 20 (`-u cz_eet` z verze 19.0.1.0.0) prošel s pre-migrate skriptem.
 
 ## Licence
 

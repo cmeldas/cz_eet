@@ -6,6 +6,7 @@ import requests
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import SQL
 
 from . import eet_soap
 
@@ -86,11 +87,9 @@ class EetTrzba(models.Model):
         return ENVIRONMENT_URLS[self.environment]
 
     def _get_timeout(self):
-        value = self.env["ir.config_parameter"].sudo().get_param("cz_eet.timeout", str(eet_soap.DEFAULT_TIMEOUT))
-        try:
-            return max(float(value), 2.0)
-        except ValueError:
-            return eet_soap.DEFAULT_TIMEOUT
+        # Odoo 20: get_param() nahradily typové gettery; neplatná hodnota vrací výchozí.
+        value = self.env["ir.config_parameter"].sudo().get_float("cz_eet.timeout", eet_soap.DEFAULT_TIMEOUT)
+        return max(value, 2.0)
 
     def _prepare_message_values(self, uuid_zpravy, first_attempt, sent_at):
         self.ensure_one()
@@ -145,11 +144,12 @@ class EetTrzba(models.Model):
         if not self:
             return self
         self.flush_recordset(["state"])
-        query = "SELECT id FROM eet_trzba WHERE id IN %s AND state = 'to_send' FOR UPDATE"
-        if skip_locked:
-            query += " SKIP LOCKED"
-        self.env.cr.execute(query, [tuple(self.ids)])
-        ids = [row[0] for row in self.env.cr.fetchall()]
+        rows = self.env.execute_query(SQL(
+            "SELECT id FROM eet_trzba WHERE id IN %s AND state = 'to_send' FOR UPDATE%s",
+            tuple(self.ids),
+            SQL(" SKIP LOCKED") if skip_locked else SQL(),
+        ))
+        ids = [row[0] for row in rows]
         locked = self.browse(ids)
         locked.invalidate_recordset()
         return locked

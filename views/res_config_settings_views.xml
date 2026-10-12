@@ -25,7 +25,7 @@
                             </div>
                             <div class="row mt8">
                                 <label for="pos_eet_url" class="col-lg-4 o_light_label"/>
-                                <field name="pos_eet_url" readonly="1" class="text-muted"/>
+                                <field name="pos_eet_url" readonly="1" class="col-lg-8 text-muted text-break"/>
                             </div>
                         </div>
                     </setting>
@@ -38,7 +38,7 @@
                             </div>
                             <div class="row" invisible="not pos_eet_certificate_valid_until">
                                 <label for="pos_eet_certificate_valid_until" class="col-lg-4 o_light_label"/>
-                                <field name="pos_eet_certificate_valid_until" widget="remaining_days"/>
+                                <field name="pos_eet_certificate_valid_until" widget="relative_date"/>
                             </div>
                             <div class="row">
                                 <label for="pos_eet_eic" class="col-lg-4 o_light_label"/>
@@ -54,9 +54,9 @@
                             </div>
                         </div>
                         <div class="mt8">
-                            <button name="%(certificate.certificate_certificate_action_view_list)d" icon="oi-arrow-right"
+                            <button name="%(certificate.certificate_certificate_action_view_list)d" icon="east"
                                     type="action" string="Certifikáty" class="btn-link"/>
-                            <button name="action_eet_test_connection" type="object" icon="fa-plug"
+                            <button name="action_eet_test_connection" type="object" icon="power"
                                     string="Otestovat spojení" class="btn-link"/>
                         </div>
                     </setting>
