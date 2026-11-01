@@ -12,6 +12,8 @@ class ResConfigSettings(models.TransientModel):
         "certificate.certificate", related="pos_config_id.eet_certificate_id", readonly=False
     )
     pos_eet_certificate_valid_until = fields.Datetime(related="pos_config_id.eet_certificate_valid_until")
+    pos_eet_certificate_issuer = fields.Selection(related="pos_config_id.eet_certificate_issuer")
+    pos_eet_certificate_warning = fields.Char(related="pos_config_id.eet_certificate_warning")
     pos_eet_eic = fields.Char(related="pos_config_id.eet_eic", readonly=False)
     pos_eet_id_jednotky = fields.Integer(related="pos_config_id.eet_id_jednotky", readonly=False)
     pos_eet_id_pokl = fields.Char(related="pos_config_id.eet_id_pokl", readonly=False)

@@ -58,6 +58,14 @@ class EetTrzba(models.Model):
     porad_cis = fields.Char(string="Pořadové číslo tržby", required=True, readonly=True, index=True)
     dat_trzby = fields.Datetime(string="Datum a čas tržby", required=True, readonly=True)
     celk_trzba = fields.Monetary(string="Celková částka", required=True, readonly=True, currency_field="currency_id")
+    urceno_cerp_zuct = fields.Monetary(
+        string="Určeno k čerpání", readonly=True, currency_field="currency_id",
+        help="Prodej dárkového poukazu nebo dobití e-peněženky (urceno_cerp_zuct); je součástí celkové částky.",
+    )
+    cerp_zuct = fields.Monetary(
+        string="Čerpání", readonly=True, currency_field="currency_id",
+        help="Placeno dárkovým poukazem nebo z e-peněženky (cerp_zuct); je součástí celkové částky.",
+    )
 
     state = fields.Selection(STATES, string="Stav", default="to_send", required=True, index=True, copy=False)
     pok = fields.Char(string="POK", readonly=True, copy=False, help="Potvrzovací kód přidělený správcem daně.")
@@ -93,7 +101,7 @@ class EetTrzba(models.Model):
 
     def _prepare_message_values(self, uuid_zpravy, first_attempt, sent_at):
         self.ensure_one()
-        return {
+        values = {
             "uuid_zpravy": uuid_zpravy,
             "dat_odesl": eet_soap.format_datetime(sent_at),
             "prvni_zaslani": first_attempt,
@@ -105,6 +113,11 @@ class EetTrzba(models.Model):
             "dat_trzby": eet_soap.format_datetime(self.dat_trzby),
             "celk_trzba": eet_soap.format_amount(self.celk_trzba),
         }
+        # Nerelevantní položky se do zprávy neuvádějí vůbec, ani s nulou (metodika FS, kap. 1).
+        for key in ("urceno_cerp_zuct", "cerp_zuct"):
+            if not self.currency_id.is_zero(self[key]):
+                values[key] = eet_soap.format_amount(self[key])
+        return values
 
     def _build_envelope(self, uuid_zpravy, first_attempt, sent_at):
         """Podepsaná obálka; při chybě konfigurace nebo XSD vyhodí UserError."""
@@ -168,7 +181,9 @@ class EetTrzba(models.Model):
         try:
             envelope = self._build_envelope(uuid_zpravy, first_attempt, sent_at)
         except UserError as error:
-            self.write({"state": "error", "error_text": str(error), "attempts": self.attempts + 1})
+            # Nic neodešlo, takže se to nepočítá jako pokus: první skutečné odeslání musí mít
+            # prvni_zaslani="true".
+            self.write({"state": "error", "error_text": str(error)})
             _logger.warning("cz_eet: tržba %s nejde sestavit: %s", self.display_name, error)
             return False
 

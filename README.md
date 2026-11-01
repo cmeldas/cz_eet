@@ -5,9 +5,10 @@ Odoo 20 modul (větev `20.0`; verze pro Odoo 19 je na větvi `19.0`) pro **elekt
 v pokladně sestaví datovou zprávu `<Trzba>`, podepíše ji pokladním certifikátem a odešle
 správci daně; potvrzovací kód (**POK**) uloží k objednávce a tiskne na účtenku.
 
-Podklady: [eet.gov.cz/pro-vyvojare](https://eet.gov.cz/cs/pro-vyvojare) – Popis rozhraní v1.2
-(25. 8. 2026), `EETXMLSchema.xsd` 4.1, vzorové zprávy `CZ*.eet.v4.req.xml`, přístupové
-informace k playgroundu a produkci.
+Podklady: zákon č. 180/2026 Sb. o evidenci tržeb, [eet.gov.cz/pro-vyvojare](https://eet.gov.cz/cs/pro-vyvojare) –
+Popis rozhraní v1.2 (25. 8. 2026; anglická v1.2a z 2. 10. jen opravuje délku `porad_cis` na 1–25),
+`EETXMLSchema.xsd` 4.1, vzorové zprávy `CZ*.eet.v4.req.xml`, metodika **Popis položek datové zprávy
+s příklady** v1.0 (5. 10. 2026), přístupové informace k playgroundu a produkci v1.1, certifikáty CA EET.
 
 ## Co dělá
 
@@ -41,13 +42,40 @@ informace k playgroundu a produkci.
 | `eic_popl` | `pos.config.eet_eic` (předvyplní se z CN certifikátu) |
 | `id_jednotky` | `pos.config.eet_id_jednotky` (číslo z DIS+) |
 | `id_pokl` | `pos.config.eet_id_pokl` (výchozí název pokladny bez diakritiky, max. 20 znaků) |
-| `porad_cis` | `pos.order.pos_reference` (číslo účtenky, např. `261-1-000005`) |
-| `dat_trzby` | `pos.order.date_order` převedené do `Europe/Prague` s offsetem (`+01:00`/`+02:00`) |
-| `celk_trzba` | součet plateb objednávky bez metody „zaplatit později“ (vratka záporně), 2 desetinná místa |
+| `porad_cis` | `pos.order.pos_reference` (číslo účtenky, např. `261-1-000005`), max. 25 znaků |
+| `dat_trzby` | `pos.order.date_order` (pokladna ho nastaví v okamžiku zaplacení) převedené do `Europe/Prague` s offsetem (`+01:00`/`+02:00`) |
+| `celk_trzba` | součet plateb objednávky bez metody „zaplatit později“ + placeno poukazem, 2 desetinná místa |
+| `urceno_cerp_zuct` | prodej dárkového poukazu / dobití e-peněženky (jen když v objednávce je) |
+| `cerp_zuct` | placeno dárkovým poukazem / z e-peněženky (jen když v objednávce je) |
 | `overeni` | jen když je zapnutý ověřovací mód |
 
 Zpráva bez položek, DPH, BKP a PKP – EET 2.0 je chce takto minimální. Nepovinné atributy
-(`eic_poverujiciho`, `povereni_vice_popl`, `urceno_cerp_zuct`, `cerp_zuct`) modul nepoužívá.
+`eic_poverujiciho` a `povereni_vice_popl` (zastoupení, pověření) modul nepoužívá. Atributy, které
+k tržbě nepatří, ve zprávě vůbec nejsou (ani s nulou).
+
+**Celková částka je to, co zákazník skutečně zaplatil** (metodika FS, kap. 12):
+
+- Platba více způsoby (hotovost + karta + QR) = jedna zpráva s celkovou částkou.
+- Vrácené peníze ukládá Odoo jako zápornou platbu v hotovosti, takže se odečtou samy
+  (zákazník dá 200 Kč za nákup za 90 Kč → eviduje se 90 Kč).
+- Zaokrouhlení hotovosti je už v částce platby: nákup za 81,60 Kč hotově = 82 Kč, kartou 81,60 Kč.
+  Obchůdek má zaokrouhlení na celé koruny pro všechny platby (i QR).
+- Záloha a doplatek jsou dvě objednávky, tedy dvě zprávy. Záloha převodem z e-shopu v pokladně není
+  a neeviduje se.
+- Řada pořadových čísel smí mít mezery (objednávka zdarma nebo celá „na účet“ číslo spotřebuje,
+  ale neeviduje se), FS to výslovně připouští (kap. 10).
+
+**Dárkové poukazy a e-peněženka** (`pos_loyalty`, programy typu *Dárkový poukaz* a *E-peněženka*):
+Odoo je vede jako kredit v korunách na cokoli z obchodu, tedy prostředek pro platbu v omezené síti
+(metodika kap. 13–14):
+
+- Prodej poukazu / dobití peněženky: `celk_trzba` včetně poukazu a `urceno_cerp_zuct` = cena poukazu.
+- Placení poukazem: v objednávce je řádek odměny se zápornou cenou, v platbách není nic.
+  `celk_trzba` = platby + uplatněný poukaz, `cerp_zuct` = uplatněný poukaz. Nákup placený celý
+  poukazem se eviduje taky (dřív se kvůli nulovým platbám neevidoval vůbec).
+- Poukaz na konkrétní zboží nebo službu („poukaz na jízdu na koni“) není hodnotový: prodává se jako
+  běžné zboží, a jeho uplatnění se neeviduje. V Odoo ho proto nezakládat jako *Dárkový poukaz*.
+- Vrácení zboží placeného poukazem modul zatím neřeší zvlášť (eviduje se součet vrácených peněz).
 
 Podpis: WS-Security, podepsán právě `soap:Body` (`wsu:Id`), Exclusive C14N s
 `InclusiveNamespaces` jako ve vzorech FS, SHA-256, RSA-SHA256, certifikát
@@ -73,14 +101,29 @@ Finanční správy pro playground** (EIČ `CZ8551015704`, heslo `aaaa1111`) – 
 u pokladny s prostředím Playground.
 
 Produkční certifikát (RSA 2048, platnost 366 dní) vydává CA EET v **DIS+ (MOJE daně)** →
-Evidence tržeb: nejdřív založit evidenční jednotku, pak vygenerovat certifikát (možné od
-1. 11. 2026). Soubor `.p12` nahrát jako nový certifikát (Nastavení → Certifikáty, rozsah
-*EET – pokladní certifikát*) a vybrat u pokladny s prostředím Produkce. Datum konce platnosti
-je vidět v nastavení pokladny; výměna je zatím ruční.
+Evidence tržeb: nejdřív založit evidenční jednotku, pak vygenerovat certifikát (spuštěno
+1. 11. 2026, zdarma, bez omezení počtu). Soubor `.p12` nahrát jako nový certifikát (Nastavení →
+Certifikáty, rozsah *EET – pokladní certifikát*, heslo z DIS+) a vybrat u pokladny s prostředím
+Produkce. Datum konce platnosti je vidět v nastavení pokladny.
+
+**Kontrola vydavatele:** nastavení pokladny ukazuje, která CA EET certifikát vydala (produkce /
+playground), a varuje, když nesedí k prostředí pokladny nebo když ho CA EET nevydala vůbec (server
+by zprávy odmítl). Ověřuje se podpis certifikátu vydávající SubCA a SubCA kořenovou CA podle
+certifikátů z eet.gov.cz v `data/ca/` (produkce: *EETv2 NCA SubCA RSA 10/2026* ← *Root CA RSA
+09/2026*; playground: *SubCA/RootCA RSA 05/2026*). Platnost v čase a CRL kontroluje server.
+Varování nic neblokuje; když FS vydá novou SubCA, stačí přidat její soubor do `data/ca/`
+a `eet_soap.CA_FILES`.
+
+Výměna certifikátu je zatím ruční (jednou za rok). Automatickou obnovu by šlo udělat přes API
+CA EET (`caeetapi_jwt.yml`, aktualizováno 30. 9. 2026): `POST /request/renew` → `GET
+/request/{reqId}/status` → `POST /request/{reqId}/claim-download` (PKCS#12 a heslo) → `POST
+/request/{reqId}/ack-download`, autentizace JWT podepsaným stávajícím certifikátem.
 
 Adresy služby: playground `https://pg.trzbyeet.gov.cz/eet/services/EETServiceSOAP/v4`,
 produkce `https://trzbyeet.gov.cz/eet/services/EETServiceSOAP/v4` (přechodný režim od
-1. 11. 2026, ostré tržby od 1. 1. 2027; údržba čtvrtek 20:00–6:00).
+1. 11. 2026, ostré tržby od 1. 1. 2027; údržba čtvrtek 20:00–6:00). Produkční jméno 1. 11. 2026
+ráno ještě neresolvovalo (veřejné DNS bez záznamu A); pokladna s Produkcí pak tržby drží ve frontě
+a na účtenku tiskne „režim offline“, cron je odešle, až služba poběží.
 
 ## Nastavení pro Ranč Na Samotách
 
@@ -98,11 +141,11 @@ zákon chce čekat alespoň 2 s).
 ## Testy
 
 ```
-odoo -d <db> -i cz_eet --test-enable --test-tags /cz_eet --stop-after-init
+odoo -d <db> -i cz_eet,pos_loyalty --test-enable --test-tags /cz_eet --stop-after-init
 ```
 
-Testy nepotřebují síť: HTTP volání nahrazuje falešný server, podpis se ověřuje lokálně
-a proti vzorové zprávě FS. Ostrý test proti playgroundu: v nastavení pokladny zvolit
+Bez `pos_loyalty` se testy poukazů přeskočí. Testy nepotřebují síť: HTTP volání nahrazuje
+falešný server, podpis se ověřuje lokálně a proti vzorové zprávě FS. Ostrý test proti playgroundu: v nastavení pokladny zvolit
 Playground + testovací certifikát a stisknout *Otestovat spojení*, případně zaplatit
 objednávku – POK končí `-ff`.
 
@@ -151,6 +194,26 @@ balíčky assetů se sestaví, v headless Edge pokladna načtená bez chyb v kon
 v hotovosti proti playgroundu FS → POK `…-ff` na účtence, simulovaný výpadek → varování
 a účtenka „offline“, backend (objednávka, seznam a formulář tržeb, nastavení pokladny) bez
 chyb. Přechod 19 → 20 (`-u cz_eet` z verze 19.0.1.0.0) prošel s pre-migrate skriptem.
+
+## 20.0.1.1.0 (1. 11. 2026)
+
+Kontrola proti zákonu 180/2026 Sb., rozhraní v1.2a a nové metodice FS (Popis položek datové
+zprávy 1.0):
+
+- **Dárkové poukazy a e-peněženka** (`urceno_cerp_zuct`, `cerp_zuct`, viz výše). Na produkci se
+  poukazy prodávají i uplatňují: v kopii z 23. 10. 2026 bylo 27 poukazů, 16 plateb poukazem
+  a 26 z e-peněženky, nákupy placené celé poukazem by se jinak neevidovaly vůbec.
+- **Kontrola vydavatele pokladního certifikátu** podle certifikátů CA EET (`data/ca/`).
+- Zpráva, kterou nejde sestavit (chybí certifikát), se nepočítá jako pokus o odeslání, takže první
+  skutečné odeslání má `prvni_zaslani="true"`.
+- Testy (47): poukazy, platba více způsoby, vrácené peníze, zaokrouhlení hotovosti, mezery
+  v pořadových číslech, vydavatel certifikátu. Bez změny zůstává stavba XML, podpis, adresy a XSD
+  (rozhraní 4.1).
+
+Ověřeno 1. 11. 2026: testy v čisté DB s `pos_loyalty` 47/47, playground FS přijal zprávy s nabitím,
+čerpáním i stornem poukazu (POK `…-ff`, bez varování).
+
+Nasazení: `-u cz_eet` (nová pole na `eet.trzba`).
 
 ## Licence
 

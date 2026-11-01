@@ -2,6 +2,7 @@
 from datetime import datetime
 from pathlib import Path
 
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
@@ -118,6 +119,26 @@ class TestEetSoap(TransactionCase):
         hlavicka = trzba.find(f"{{{eet_soap.NS_EET}}}Hlavicka")
         self.assertEqual(hlavicka.get("overeni"), "true")
         self.assertEqual(hlavicka.get("prvni_zaslani"), "false")
+
+    def test_build_trzba_vouchers(self):
+        """Hodnotový poukaz: nabití a čerpání jsou nepovinné atributy, obojí je i v celk_trzba."""
+        trzba = eet_soap.build_trzba(sample_values(celk_trzba="1050.00", urceno_cerp_zuct="1000.00"))
+        self.assertEqual(eet_soap.xsd_errors(trzba), [])
+        data = trzba.find(f"{{{eet_soap.NS_EET}}}Data")
+        self.assertEqual(data.get("urceno_cerp_zuct"), "1000.00")
+        self.assertIsNone(data.get("cerp_zuct"))
+        trzba = eet_soap.build_trzba(sample_values(celk_trzba="-121.00", cerp_zuct="-121.00"))
+        self.assertEqual(eet_soap.xsd_errors(trzba), [])
+
+    def test_certificate_environment(self):
+        """Vydavatele pokladního certifikátu pozná modul podle certifikátů CA EET z eet.gov.cz."""
+        self.assertEqual(set(eet_soap._issuing_cas()), {"production", "playground"}, "SubCA musí navazovat na kořenovou CA")
+        _key, certificate = load_playground_key()
+        self.assertEqual(eet_soap.certificate_environment(certificate.public_bytes(Encoding.DER)), "playground")
+        # kořenová CA je podepsaná sama sebou, pokladní certifikát to není
+        root = x509.load_pem_x509_certificate((eet_soap.CA_DIR / "ca_eet-root_prod.pem").read_bytes())
+        self.assertIsNone(eet_soap.certificate_environment(root.public_bytes(Encoding.DER)))
+        self.assertIsNone(eet_soap.certificate_environment(b"neni certifikat"))
 
     def test_build_trzba_invalid_values_fail_xsd(self):
         self.assertTrue(eet_soap.xsd_errors(eet_soap.build_trzba(sample_values(eic_popl="12345678"))))

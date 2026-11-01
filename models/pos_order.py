@@ -2,7 +2,6 @@
 from datetime import timedelta
 
 from odoo import _, api, fields, models
-from odoo.tools import float_is_zero
 
 from . import eet_soap
 from .eet_trzba import STATES
@@ -24,11 +23,51 @@ class PosOrder(models.Model):
             order.eet_pok = trzba.pok or False
 
     def _eet_amount(self):
-        """Skutečně přijatá částka: součet plateb bez „zaplatit později“ (vratka je záporná)."""
+        """Skutečně přijatá částka: součet plateb bez „zaplatit později“.
+
+        Vrácené peníze jsou záporná platba v hotovosti, zaokrouhlení hotovosti je už v částce
+        platby, takže součet je to, co zákazník opravdu zaplatil (vratka je záporná).
+        """
         self.ensure_one()
         return sum(
             payment.amount for payment in self.payment_ids if payment.payment_method_id.type != "pay_later"
         )
+
+    def _eet_voucher_amounts(self):
+        """Dárkové poukazy a e-peněženka z modulu pos_loyalty: ``(urceno_cerp_zuct, cerp_zuct)``.
+
+        Odoo je vede jako kredit v korunách použitelný na cokoli z obchodu, tedy prostředek
+        k platbě v omezené síti (metodika FS „Popis položek datové zprávy“ 1.0, kap. 13–14):
+        prodej poukazu nebo dobití peněženky je platba určená k čerpání, placení poukazem
+        je čerpání. Obojí patří i do celkové částky tržby. Uplatnění snižuje cenu objednávky
+        řádkem odměny, a proto ho v platbách nevidíme.
+        """
+        self.ensure_one()
+        if "reward_id" not in self.lines._fields:
+            return 0.0, 0.0
+        programs = self.env["loyalty.program"].sudo().with_context(active_test=False).search(
+            [("program_type", "in", ("gift_card", "ewallet"))]
+        )
+        if not programs:
+            return 0.0, 0.0
+        credit_products = programs.rule_ids.product_ids
+        urceno = sum(
+            line.price_subtotal_incl
+            for line in self.lines
+            if not line.reward_id and line.product_id in credit_products
+        )
+        cerp = -sum(line.price_subtotal_incl for line in self.lines if line.reward_id.program_id in programs)
+        return self.currency_id.round(urceno), self.currency_id.round(cerp)
+
+    def _eet_amounts(self):
+        """Částky pro datovou zprávu: celková tržba a z ní hodnotové poukazy."""
+        self.ensure_one()
+        urceno, cerp = self._eet_voucher_amounts()
+        return {
+            "celk_trzba": self.currency_id.round(self._eet_amount() + cerp),
+            "urceno_cerp_zuct": urceno,
+            "cerp_zuct": cerp,
+        }
 
     def _eet_porad_cis(self):
         self.ensure_one()
@@ -46,7 +85,7 @@ class PosOrder(models.Model):
             "pos_order_id": self.id,
             "porad_cis": self._eet_porad_cis(),
             "dat_trzby": self.date_order or fields.Datetime.now(),
-            "celk_trzba": self._eet_amount(),
+            **self._eet_amounts(),
         })
         # Pokladna odešle tržbu hned po synchronizaci; cron je záloha pro objednávky
         # doručené dodatečně (pokladna byla offline). Minuta odstupu brání souběhu.
@@ -57,13 +96,13 @@ class PosOrder(models.Model):
 
     def action_pos_order_paid(self):
         result = super().action_pos_order_paid()
-        if (
-            self.config_id.eet_enabled
-            and not self.eet_trzba_ids
-            and not float_is_zero(self._eet_amount(), precision_rounding=self.currency_id.rounding)
-        ):
+        if self.config_id.eet_enabled and not self.eet_trzba_ids and self._eet_has_amount():
             self._eet_create_trzba()
         return result
+
+    def _eet_has_amount(self):
+        """Objednávka bez přijatých peněz i bez poukazů (např. ochutnávka zdarma) se neeviduje."""
+        return any(not self.currency_id.is_zero(amount) for amount in self._eet_amounts().values())
 
     @api.model
     def eet_send_now(self, order_ids):

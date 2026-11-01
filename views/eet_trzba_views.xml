@@ -13,6 +13,8 @@
                 <field name="config_id"/>
                 <field name="pos_order_id" optional="show"/>
                 <field name="celk_trzba" sum="Celkem"/>
+                <field name="urceno_cerp_zuct" sum="Celkem" optional="hide"/>
+                <field name="cerp_zuct" sum="Celkem" optional="hide"/>
                 <field name="environment" optional="show"/>
                 <field name="overeni" optional="hide"/>
                 <field name="state" widget="badge"
@@ -62,6 +64,8 @@
                             <field name="pos_order_id"/>
                             <field name="dat_trzby"/>
                             <field name="celk_trzba"/>
+                            <field name="urceno_cerp_zuct" invisible="not urceno_cerp_zuct"/>
+                            <field name="cerp_zuct" invisible="not cerp_zuct"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                         <group string="Evidence">

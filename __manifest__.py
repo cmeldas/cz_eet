@@ -21,11 +21,15 @@ na účtenku.
   (zákon: bezodkladně po obnovení, nejpozději do 48 h). Opakované zaslání má nové
   UUID zprávy a ``prvni_zaslani="false"``.
 * Storno/refundace se eviduje jako tržba se zápornou částkou.
+* Dárkové poukazy a e-peněženka (pos_loyalty): prodej jako ``urceno_cerp_zuct``,
+  placení poukazem jako ``cerp_zuct``, obojí i v celkové částce tržby.
+* U pokladny je vidět, která CA EET pokladní certifikát vydala (produkce / playground),
+  a varování, když nesedí k prostředí.
 * Údaje EET na účtence doplňuje dědění serverové šablony
   ``point_of_sale.pos_order_receipt`` (v Odoo 20 ji vykresluje pokladna i backend).
 * Součástí je testovací certifikát Finanční správy pro playground (EIČ CZ8551015704).
 """,
-    "version": "20.0.1.0.0",
+    "version": "20.0.1.1.0",
     "category": "Sales/Point of Sale",
     "author": "Matouš Čmelík",
     "website": "https://github.com/cmeldas/cz_eet",

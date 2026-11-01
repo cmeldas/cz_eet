@@ -35,6 +35,13 @@ class PosConfig(models.Model):
         "testovací certifikát Finanční správy, který modul instaluje.",
     )
     eet_certificate_valid_until = fields.Datetime(related="eet_certificate_id.date_end", string="Certifikát platí do")
+    eet_certificate_issuer = fields.Selection(
+        [*ENVIRONMENTS, ("unknown", "Jiný vydavatel (ne CA EET)")],
+        string="Certifikát vydala CA EET",
+        compute="_compute_eet_certificate_issuer",
+        help="Ověřeno podle certifikátů CA EET Finanční správy (produkční a playground) přibalených k modulu.",
+    )
+    eet_certificate_warning = fields.Char(string="Upozornění k certifikátu", compute="_compute_eet_certificate_issuer")
     eet_eic = fields.Char(
         string="EIČ poplatníka",
         size=12,
@@ -68,6 +75,35 @@ class PosConfig(models.Model):
                 config.eet_eic = common_name
             elif not config.eet_eic:
                 config.eet_eic = False
+
+    @api.depends("eet_certificate_id.pem_certificate", "eet_environment")
+    def _compute_eet_certificate_issuer(self):
+        environments = dict(ENVIRONMENTS)
+        for config in self:
+            certificate = config.eet_certificate_id.sudo()
+            if not certificate:
+                config.eet_certificate_issuer = config.eet_certificate_warning = False
+                continue
+            try:
+                certificate_der = certificate._get_der_certificate_bytes(formatting=None)
+            except (AttributeError, TypeError, ValueError):
+                # PKCS#12 se nepodařilo načíst (špatné heslo, poškozený soubor): pem_certificate je prázdný
+                certificate_der = b""
+            issuer = eet_soap.certificate_environment(certificate_der) or "unknown"
+            config.eet_certificate_issuer = issuer
+            if issuer == "unknown":
+                config.eet_certificate_warning = _(
+                    "Certifikát nevydala certifikační autorita EET, správce daně s ním podepsané zprávy odmítne."
+                )
+            elif issuer != config.eet_environment:
+                config.eet_certificate_warning = _(
+                    "Certifikát je pro %(issuer)s, pokladna ale posílá do prostředí %(environment)s. "
+                    "Správce daně zprávy odmítne.",
+                    issuer=environments[issuer],
+                    environment=environments[config.eet_environment],
+                )
+            else:
+                config.eet_certificate_warning = False
 
     @api.depends("name")
     def _compute_eet_id_pokl(self):
@@ -133,6 +169,8 @@ class PosConfig(models.Model):
         else:
             message = _("Test selhal: %s", trzba.error_text or trzba.state)
             notification_type = "danger"
+        if self.eet_certificate_warning:
+            message += "\n" + self.eet_certificate_warning
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",

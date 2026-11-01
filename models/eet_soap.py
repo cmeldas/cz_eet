@@ -52,6 +52,14 @@ ALLOWED_CHARS = frozenset("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ
 
 XSD_PATH = Path(__file__).resolve().parents[1] / "static" / "xsd" / "EETXMLSchema.xsd"
 
+# Certifikáty CA EET z eet.gov.cz (dokumenty ke stažení): vydávající SubCA a kořenová CA
+# pro každé prostředí. Když FS vydá novou SubCA (platí 4 roky), přidat sem její soubor.
+CA_DIR = Path(__file__).resolve().parents[1] / "data" / "ca"
+CA_FILES = {
+    "production": ("ca_eet-sub_prod.pem", "ca_eet-root_prod.pem"),
+    "playground": ("ca_eet-sub_cert-playground.crt", "ca_eet-root_cert-playground.crt"),
+}
+
 
 def _tag(namespace: str, name: str) -> str:
     return f"{{{namespace}}}{name}"
@@ -118,6 +126,42 @@ def xsd_errors(element: etree._Element) -> list[str]:
     if schema.validate(element):
         return []
     return [entry.message for entry in schema.error_log]
+
+
+def _issued_by(certificate: x509.Certificate, issuer: x509.Certificate) -> bool:
+    try:
+        certificate.verify_directly_issued_by(issuer)
+    except (ValueError, TypeError, InvalidSignature):
+        return False
+    return True
+
+
+@functools.lru_cache(maxsize=1)
+def _issuing_cas() -> dict:
+    """Vydávající SubCA podle prostředí; jen ty, které podepsala kořenová CA téhož prostředí."""
+    cas = {}
+    for environment, (sub_file, root_file) in CA_FILES.items():
+        sub = x509.load_pem_x509_certificate((CA_DIR / sub_file).read_bytes())
+        root = x509.load_pem_x509_certificate((CA_DIR / root_file).read_bytes())
+        if _issued_by(sub, root):
+            cas[environment] = sub
+    return cas
+
+
+def certificate_environment(certificate_der: bytes) -> str | None:
+    """Prostředí CA EET, která pokladní certifikát vydala (``production`` / ``playground``).
+
+    ``None``, když ho nevydala žádná známá SubCA EET. Ověřuje se jen řetězec certifikátů;
+    platnost v čase a zneplatnění (CRL) kontroluje server u každé zprávy.
+    """
+    try:
+        certificate = x509.load_der_x509_certificate(certificate_der)
+    except ValueError:
+        return None
+    for environment, sub in _issuing_cas().items():
+        if _issued_by(certificate, sub):
+            return environment
+    return None
 
 
 def build_trzba(values: dict) -> etree._Element:

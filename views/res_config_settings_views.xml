@@ -40,6 +40,13 @@
                                 <label for="pos_eet_certificate_valid_until" class="col-lg-4 o_light_label"/>
                                 <field name="pos_eet_certificate_valid_until" widget="relative_date"/>
                             </div>
+                            <div class="row" invisible="not pos_eet_certificate_issuer">
+                                <label for="pos_eet_certificate_issuer" class="col-lg-4 o_light_label"/>
+                                <field name="pos_eet_certificate_issuer" readonly="1"/>
+                            </div>
+                            <div class="alert alert-warning mt8 mb0" role="alert" invisible="not pos_eet_certificate_warning">
+                                <field name="pos_eet_certificate_warning" readonly="1"/>
+                            </div>
                             <div class="row">
                                 <label for="pos_eet_eic" class="col-lg-4 o_light_label"/>
                                 <field name="pos_eet_eic" placeholder="CZ12345678"/>
